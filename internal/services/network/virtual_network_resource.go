@@ -7,6 +7,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/hashicorp/terraform-plugin-framework/list"
+	listschema "github.com/hashicorp/terraform-plugin-framework/list/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/sdk"
 	"log"
 	"regexp"
 	"strings"
@@ -37,6 +41,91 @@ import (
 )
 
 //go:generate go run ../../tools/generator-tests resourceidentity -resource-name virtual_network -service-package-name network -properties "name,resource_group_name" -known-values "subscription_id:data.Subscriptions.Primary"
+
+var _ sdk.ListResource = &VirtualNetworkListResource{}
+
+type VirtualNetworkListResource struct {
+	sdk.ListResourceMetadata
+}
+
+func (r VirtualNetworkListResource) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = VirtualNetworkResourceName
+}
+
+func (r VirtualNetworkListResource) ListResourceConfigSchema(_ context.Context, _ list.ListResourceSchemaRequest, resp *list.ListResourceSchemaResponse) {
+	resp.Schema = listschema.Schema{
+		Attributes: map[string]listschema.Attribute{
+			"resource_group_name": listschema.StringAttribute{
+				Required: true,
+			},
+		},
+	}
+}
+
+type VirtualNetworkListModel struct {
+	ResourceGroupName string `tfsdk:"resource_group_name"`
+}
+
+func (r VirtualNetworkListResource) List(ctx context.Context, req list.ListRequest, stream *list.ListResultsStream) {
+	var data VirtualNetworkListModel
+
+	diags := req.Config.Get(ctx, &data)
+	if diags.HasError() {
+		stream.Results = list.ListResultsStreamDiagnostics(diags)
+		return
+	}
+	stream.Results = func(push func(list.ListResult) bool) {
+		client := r.Client.Network.VirtualNetworks
+
+		// TODO what about timeouts?
+		ctx, cancel := context.WithTimeout(ctx, time.Minute*5)
+		defer cancel()
+
+		virtualNetworks, err := client.List(ctx, commonids.NewResourceGroupID(r.SubscriptionId, data.ResourceGroupName))
+		// TODO check HttpResponse etc.
+		if err != nil {
+			sdk.SetResponseErrorDiagnostic(stream.Results, "", err)
+		}
+
+		if models := virtualNetworks.Model; models != nil {
+			for _, model := range *models {
+				result := req.NewListResult()
+
+				// ignoring nil-checks for the time being...
+				result.DisplayName = *model.Name
+				id, err := commonids.ParseVirtualNetworkID(*model.Id)
+				if err != nil {
+					// things here
+				}
+
+				// Identity would look like:
+				// {
+				//		"subscription_id": "00000000-0000-0000-0000-000000000000",
+				//		"resource_group_name": "example-resources",
+				//		"name": "example-vnet",
+				// }
+
+				// Setting Identity in the result for Framework
+				// Issue is that result.Identity won't have Schema populated?
+				if diags := result.Identity.Set(ctx, id); diags.HasError() {
+					result.Diagnostics.Append(diags...)
+				}
+
+				// Setting Identity in SDKv2 but this sets it to state?
+				// ResourceData d is unavailable
+				rd := &pluginsdk.ResourceData{}
+				if err := pluginsdk.SetResourceIdentityData(rd, id); err != nil {
+					// things here
+				}
+
+				// Is include_resource behaviour handled here by the provider?
+				// Set resource object info below
+
+			}
+		}
+	}
+
+}
 
 var VirtualNetworkResourceName = "azurerm_virtual_network"
 
