@@ -48,6 +48,10 @@ type VirtualNetworkListResource struct {
 	sdk.ListResourceMetadata
 }
 
+func NewVirtualNetworkListResource() list.ListResource {
+	return &VirtualNetworkListResource{}
+}
+
 func (r VirtualNetworkListResource) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = VirtualNetworkResourceName
 }
@@ -98,7 +102,7 @@ func (r VirtualNetworkListResource) List(ctx context.Context, req list.ListReque
 					// things here
 				}
 
-				// Identity would look like:
+				// id needs to be transformed into:
 				// {
 				//		"subscription_id": "00000000-0000-0000-0000-000000000000",
 				//		"resource_group_name": "example-resources",
@@ -106,7 +110,6 @@ func (r VirtualNetworkListResource) List(ctx context.Context, req list.ListReque
 				// }
 
 				// Setting Identity in the result for Framework
-				// Issue is that result.Identity won't have Schema populated?
 				if diags := result.Identity.Set(ctx, id); diags.HasError() {
 					result.Diagnostics.Append(diags...)
 				}
@@ -120,11 +123,9 @@ func (r VirtualNetworkListResource) List(ctx context.Context, req list.ListReque
 
 				// Is include_resource behaviour handled here by the provider?
 				// Set resource object info below
-
 			}
 		}
 	}
-
 }
 
 var VirtualNetworkResourceName = "azurerm_virtual_network"

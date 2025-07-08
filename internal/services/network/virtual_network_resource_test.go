@@ -6,6 +6,14 @@ package network_test
 import (
 	"context"
 	"fmt"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov5"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	"github.com/hashicorp/terraform-plugin-mux/tf5muxserver"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/provider"
+	azurermProvider "github.com/hashicorp/terraform-provider-azurerm/internal/provider/framework"
 	"regexp"
 	"testing"
 
@@ -19,6 +27,90 @@ import (
 )
 
 type VirtualNetworkResource struct{}
+
+func TestAccVirtualNetwork_list(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	v2Provider := provider.AzureProvider()
+
+	providers := []func() tfprotov5.ProviderServer{
+		v2Provider.GRPCProvider,
+		providerserver.NewProtocol5(azurermProvider.NewFrameworkProvider(v2Provider)),
+	}
+
+	muxServer, err := tf5muxserver.NewMuxServer(ctx, providers...)
+	if err != nil {
+		t.Fatalf("retrieving azurerm provider: %s", err)
+	}
+
+	s, ok := muxServer.ProviderServer().(tfprotov5.ProviderServerWithListResource)
+	if !ok {
+		t.Errorf("type assertion failed")
+	}
+
+	config, err := tfprotov5.NewDynamicValue(
+		tftypes.Object{
+			AttributeTypes: map[string]tftypes.Type{
+				"resource_group_name": tftypes.String,
+			},
+		},
+		tftypes.NewValue(
+			tftypes.Object{
+				AttributeTypes: map[string]tftypes.Type{
+					"resource_group_name": tftypes.String,
+				},
+			},
+			map[string]tftypes.Value{
+				"resource_group_name": tftypes.NewValue(tftypes.String, "acctestsw"),
+			},
+		),
+	)
+
+	if err != nil {
+		t.Fatalf("failed to create dynamic value: %+v", err)
+	}
+
+	listRequest := &tfprotov5.ListResourceRequest{
+		TypeName: "azurerm_virtual_network",
+		Config:   &config,
+	}
+
+	_, err = s.GetProviderSchema(ctx, &tfprotov5.GetProviderSchemaRequest{})
+	if err != nil {
+		t.Errorf("failed to get provider schema: %+v", err)
+	}
+
+	stream, err := s.ListResource(ctx, listRequest)
+	if err != nil {
+		t.Errorf("failed to list resources: %+v", err)
+	}
+
+	for result := range stream.Results {
+		if len(result.Diagnostics) > 0 {
+			t.Fatalf("expected 0 diagnostics; got: %+v", result.Diagnostics)
+		}
+	}
+
+	got := []string{}
+	wanted := []string{"test"}
+
+	for result := range stream.Results {
+		got = append(got, result.DisplayName)
+
+		if len(result.Diagnostics) > 0 {
+			t.Errorf("expected 0 diagnostics; got: %+v", result.Diagnostics)
+		}
+	}
+
+	opts := cmp.Options{
+		cmpopts.SortSlices(func(x, y string) bool { return x < y }),
+	}
+	if diff := cmp.Diff(got, wanted, opts); diff != "" {
+		t.Errorf("ListResource results mismatch (-got +wanted):\n%s", diff)
+	}
+
+}
 
 func TestAccVirtualNetwork_basic(t *testing.T) {
 	data := acceptance.BuildTestData(t, "azurerm_virtual_network", "test")

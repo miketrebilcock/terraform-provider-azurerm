@@ -5,6 +5,7 @@ package framework
 
 import (
 	"context"
+	"github.com/hashicorp/terraform-plugin-framework/list"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -34,6 +35,8 @@ var _ provider.Provider = &azureRmFrameworkProvider{}
 var _ provider.ProviderWithFunctions = &azureRmFrameworkProvider{}
 
 var _ provider.ProviderWithEphemeralResources = &azureRmFrameworkProvider{}
+
+var _ provider.ProviderWithListResources = &azureRmFrameworkProvider{}
 
 func (p *azureRmFrameworkProvider) Functions(_ context.Context) []func() function.Function {
 	return []func() function.Function{
@@ -566,6 +569,16 @@ func (p *azureRmFrameworkProvider) EphemeralResources(_ context.Context) []func(
 
 	for _, service := range pluginsdkprovider.SupportedFrameworkServices() {
 		output = append(output, service.EphemeralResources()...)
+	}
+
+	return output
+}
+
+func (p *azureRmFrameworkProvider) ListResources(_ context.Context) []func() list.ListResource {
+	var output []func() list.ListResource
+
+	for _, service := range pluginsdkprovider.SupportedFrameworkServices() {
+		output = append(output, service.ListResources()...)
 	}
 
 	return output
