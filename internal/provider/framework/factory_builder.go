@@ -6,6 +6,7 @@ package framework
 import (
 	"context"
 
+	frameworkProvider "github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov5"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
@@ -53,14 +54,49 @@ func ProtoV5ProviderServerFactory(ctx context.Context) (func() tfprotov5.Provide
 		providerserver.NewProtocol5(NewFrameworkProvider(v2Provider)),
 	}
 
-	muxServer, err := tf5muxserver.NewMuxServer(ctx, providers...)
+	listInterceptor := func(ctx context.Context, req *tfprotov5.ListResourceRequest) context.Context {
+		typeName := req.TypeName
+		resource, ok := v2Provider.ResourcesMap[typeName]
+		if !ok {
+			return ctx
+		}
+
+		return NewContextWithSDKResource(ctx, resource)
+	}
+	interceptor := tf5muxserver.Interceptor{BeforeListResource: listInterceptor}
+
+	muxServer, err := tf5muxserver.NewMuxServerWithOptions(ctx, tf5muxserver.Servers(providers...), tf5muxserver.Interceptors(interceptor))
 	if err != nil {
 		return nil, nil, err
 	}
+
+	//muxServer, err := tf5muxserver.NewMuxServer(ctx, providers...)
+	//if err != nil {
+	//	return nil, nil, err
+	//}
 
 	return muxServer.ProviderServer, v2Provider, nil
 }
 
 func V5ProviderWithoutPluginSDK() func() tfprotov5.ProviderServer {
 	return providerserver.NewProtocol5(NewFrameworkV5Provider())
+}
+
+//// Refactor: move to terraform-plugin-sdk
+//type SDKContext string
+//
+//// Refactor: move to terraform-plugin-sdk
+//var SDKResourceKey SDKContext = "sdk_resource"
+
+// Refactor: move to terraform-plugin-sdk
+// NewContextWithSDKResource returns a new Context that carries value r
+func NewContextWithSDKResource(ctx context.Context, r *schema.Resource) context.Context {
+	return context.WithValue(ctx, frameworkProvider.SDKResourceKey, r)
+}
+
+// Refactor: move to terraform-plugin-sdk
+// FromContext returns the SDK Resource value stored in ctx, if any.
+func SDKResourceFromContext(ctx context.Context) (*schema.Resource, bool) {
+	r, ok := ctx.Value(frameworkProvider.SDKResourceKey).(*schema.Resource)
+	return r, ok
 }

@@ -22,6 +22,7 @@ func main() {
 	flag.Parse()
 
 	providerServer, _, err := framework.ProtoV5ProviderServerFactory(context.Background())
+
 	if err != nil {
 		log.Fatalf("creating AzureRM Provider Server: %+v", err)
 	}

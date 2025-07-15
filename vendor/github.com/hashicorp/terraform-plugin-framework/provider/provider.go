@@ -9,8 +9,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
 	"github.com/hashicorp/terraform-plugin-framework/function"
+	"github.com/hashicorp/terraform-plugin-framework/list"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 )
+
+type SDKContext string
+
+var SDKResourceKey SDKContext = "sdk_resource"
 
 // Provider is the core interface that all Terraform providers must implement.
 //
@@ -120,6 +125,17 @@ type ProviderWithMetaSchema interface {
 	// break without warning. It is not protected by version compatibility
 	// guarantees.
 	MetaSchema(context.Context, MetaSchemaRequest, *MetaSchemaResponse)
+}
+
+type ProviderWithListResources interface {
+	Provider
+
+	// ListResources returns a slice of functions to instantiate each Resource
+	// List implementation.
+	//
+	// The resource type name is determined by the ListResource implementing
+	// the Metadata method. All ListResources must have unique names.
+	ListResources(context.Context) []func() list.ListResource
 }
 
 // ProviderWithValidateConfig is an interface type that extends Provider to include imperative validation.

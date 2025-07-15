@@ -39,10 +39,26 @@ func TestAccVirtualNetwork_list(t *testing.T) {
 		providerserver.NewProtocol5(azurermProvider.NewFrameworkProvider(v2Provider)),
 	}
 
-	muxServer, err := tf5muxserver.NewMuxServer(ctx, providers...)
+	listInterceptor := func(ctx context.Context, req *tfprotov5.ListResourceRequest) context.Context {
+		typeName := req.TypeName
+		resource, ok := v2Provider.ResourcesMap[typeName]
+		if !ok {
+			return ctx
+		}
+
+		return azurermProvider.NewContextWithSDKResource(ctx, resource)
+	}
+	interceptor := tf5muxserver.Interceptor{BeforeListResource: listInterceptor}
+
+	muxServer, err := tf5muxserver.NewMuxServerWithOptions(ctx, tf5muxserver.Servers(providers...), tf5muxserver.Interceptors(interceptor))
 	if err != nil {
 		t.Fatalf("retrieving azurerm provider: %s", err)
 	}
+
+	//muxServer, err := tf5muxserver.NewMuxServer(ctx, providers...)
+	//if err != nil {
+	//	t.Fatalf("retrieving azurerm provider: %s", err)
+	//}
 
 	s, ok := muxServer.ProviderServer().(tfprotov5.ProviderServerWithListResource)
 	if !ok {
