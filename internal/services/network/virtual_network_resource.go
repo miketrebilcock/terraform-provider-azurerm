@@ -9,7 +9,10 @@ import (
 	"fmt"
 	"github.com/hashicorp/terraform-plugin-framework/list"
 	listschema "github.com/hashicorp/terraform-plugin-framework/list/schema"
+	frameworkProvider "github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+
+	//"github.com/hashicorp/terraform-provider-azurerm/internal/provider/framework"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/sdk"
 	"log"
 	"regexp"
@@ -41,6 +44,11 @@ import (
 )
 
 //go:generate go run ../../tools/generator-tests resourceidentity -resource-name virtual_network -service-package-name network -properties "name,resource_group_name" -known-values "subscription_id:data.Subscriptions.Primary"
+
+func SDKResourceFromContext(ctx context.Context) (*schema.Resource, bool) {
+	r, ok := ctx.Value(frameworkProvider.SDKResourceKey).(*schema.Resource)
+	return r, ok
+}
 
 var _ sdk.ListResource = &VirtualNetworkListResource{}
 
@@ -89,6 +97,12 @@ func (r VirtualNetworkListResource) List(ctx context.Context, req list.ListReque
 		// TODO check HttpResponse etc.
 		if err != nil {
 			sdk.SetResponseErrorDiagnostic(stream.Results, "", err)
+		}
+
+		_, ok := SDKResourceFromContext(ctx)
+		if !ok {
+			sdk.SetResponseErrorDiagnostic(stream.Results, "SDKResource not found in context", fmt.Errorf("SDKResource not found in context"))
+			return
 		}
 
 		if models := virtualNetworks.Model; models != nil {

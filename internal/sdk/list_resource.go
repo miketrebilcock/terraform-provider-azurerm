@@ -34,3 +34,11 @@ func (r *ListResourceMetadata) Defaults(req resource.ConfigureRequest, resp *res
 	r.SubscriptionId = c.Account.SubscriptionId
 	r.Features = c.Features
 }
+
+//// DecodeList performs a Get on the OpenRequest config and attempts to load it into the interface cfg. cfg *must* be a pointer to the struct.
+//// returns true if successful, false if there is an error diagnostic raised. Any error diags are written directly to the response
+//func (r *ListResourceMetadata) DecodeList(ctx context.Context, req list.ListRequest, resp *list.ListResultsStream, cfg interface{}) bool {
+//	//resp.Diagnostics.Append(req.Config.Get(ctx, cfg)...)
+//	//
+//	//return !resp.Diagnostics.HasError()
+//}

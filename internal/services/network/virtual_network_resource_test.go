@@ -8,11 +8,8 @@ import (
 	"fmt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov5"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
-	"github.com/hashicorp/terraform-plugin-mux/tf5muxserver"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/provider"
 	azurermProvider "github.com/hashicorp/terraform-provider-azurerm/internal/provider/framework"
 	"regexp"
 	"testing"
@@ -32,35 +29,9 @@ func TestAccVirtualNetwork_list(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	v2Provider := provider.AzureProvider()
+	muxServer, _, err := azurermProvider.ProtoV5ProviderServerFactory(ctx)
 
-	providers := []func() tfprotov5.ProviderServer{
-		v2Provider.GRPCProvider,
-		providerserver.NewProtocol5(azurermProvider.NewFrameworkProvider(v2Provider)),
-	}
-
-	listInterceptor := func(ctx context.Context, req *tfprotov5.ListResourceRequest) context.Context {
-		typeName := req.TypeName
-		resource, ok := v2Provider.ResourcesMap[typeName]
-		if !ok {
-			return ctx
-		}
-
-		return azurermProvider.NewContextWithSDKResource(ctx, resource)
-	}
-	interceptor := tf5muxserver.Interceptor{BeforeListResource: listInterceptor}
-
-	muxServer, err := tf5muxserver.NewMuxServerWithOptions(ctx, tf5muxserver.Servers(providers...), tf5muxserver.Interceptors(interceptor))
-	if err != nil {
-		t.Fatalf("retrieving azurerm provider: %s", err)
-	}
-
-	//muxServer, err := tf5muxserver.NewMuxServer(ctx, providers...)
-	//if err != nil {
-	//	t.Fatalf("retrieving azurerm provider: %s", err)
-	//}
-
-	s, ok := muxServer.ProviderServer().(tfprotov5.ProviderServerWithListResource)
+	s, ok := muxServer().(tfprotov5.ProviderServerWithListResource)
 	if !ok {
 		t.Errorf("type assertion failed")
 	}
