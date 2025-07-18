@@ -3,8 +3,11 @@
 
 package logic
 
+//go:generate go run ../../tools/generator-tests resourceidentity -resource-name azurerm_logic_app_standard -properties "name,resource_group_name" -service-package-name logic -known-values "subscription_id:data.Subscriptions.Primary"
+
 import (
 	"fmt"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"log"
 	"math"
 	"strconv"
@@ -34,14 +37,15 @@ import (
 
 func resourceLogicAppStandard() *pluginsdk.Resource {
 	resource := &pluginsdk.Resource{
-		Create: resourceLogicAppStandardCreate,
-		Read:   resourceLogicAppStandardRead,
-		Update: resourceLogicAppStandardUpdate,
-		Delete: resourceLogicAppStandardDelete,
-		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
-			_, err := commonids.ParseLogicAppId(id)
-			return err
-		}),
+		Create:   resourceLogicAppStandardCreate,
+		Read:     resourceLogicAppStandardRead,
+		Update:   resourceLogicAppStandardUpdate,
+		Delete:   resourceLogicAppStandardDelete,
+		Importer: pluginsdk.ImporterValidatingIdentity(&commonids.LogicAppId{}),
+
+		Identity: &schema.ResourceIdentity{
+			SchemaFunc: pluginsdk.GenerateIdentitySchema(&commonids.LogicAppId{}),
+		},
 
 		Timeouts: &pluginsdk.ResourceTimeout{
 			Create: pluginsdk.DefaultTimeout(30 * time.Minute),
@@ -769,7 +773,7 @@ func resourceLogicAppStandardRead(d *pluginsdk.ResourceData, meta interface{}) e
 		}
 	}
 
-	return nil
+	return pluginsdk.SetResourceIdentityData(d, id)
 }
 
 func resourceLogicAppStandardDelete(d *pluginsdk.ResourceData, meta interface{}) error {
